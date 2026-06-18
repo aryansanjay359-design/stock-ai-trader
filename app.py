@@ -31,7 +31,22 @@ GROQ_KEY    = _secret("GROQ_KEY")
 NTFY_TOPIC  = _secret("NTFY_TOPIC")
 
 # ── Watchlist ─────────────────────────────────────────────────
-WATCHLIST = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "AMD"]
+WATCHLIST = [
+    # Tech giants
+    "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMD", "AMZN",
+    # Electric vehicles & energy
+    "TSLA", "RIVN", "ENPH",
+    # Finance
+    "JPM", "GS", "V",
+    # Healthcare & pharma
+    "JNJ", "PFE", "LLY",
+    # Consumer & retail
+    "NFLX", "UBER", "SBUX",
+    # Semiconductors & hardware
+    "INTC", "QCOM", "ORCL",
+    # Other high-growth
+    "COIN", "PLTR", "SHOP", "SNOW", "ARM",
+]
 
 # ── Portfolio file ────────────────────────────────────────────
 PORTFOLIO_FILE = "portfolio.json"
@@ -607,12 +622,14 @@ elif page == "📋 My Portfolio":
                 st.write(f"**Total invested:** £{info['cost_basis']:,.2f}")
                 st.write(f"**Unrealised P&L:** {icon} £{gain:+,.2f} ({gain_pct:+.1f}%)")
 
-                # Partial or full sell
+                # Partial or full sell — cast to int to avoid StreamlitValueBelowMinError
+                max_shares  = int(info["shares"])
                 sell_shares = st.number_input(
-                    f"Shares to sell (max {info['shares']})",
+                    f"Shares to sell (max {max_shares})",
                     min_value=1,
-                    max_value=info["shares"],
-                    value=info["shares"],
+                    max_value=max_shares,
+                    value=max_shares,
+                    step=1,
                     key=f"sell_qty_{ticker}"
                 )
                 proceeds = round(curr_price * sell_shares, 2)
