@@ -107,10 +107,15 @@ Live market data at {time_str}:
 {market_text}
 
 Pick the single best BUY opportunity from the tickers above.
+IMPORTANT LIMITS: max 20 shares, max £3,500 total cost. Spread risk — do not go all in on one stock.
 You MUST respond with ONLY this JSON and nothing else — no markdown, no explanation:
 
 {{"ticker":"AAPL","action":"BUY","shares":3,"price_per_share":213.45,"total_cost":640.35,"reasoning":"Brief reason using actual data.","risk":"Low"}}
 """
+
+# Hard enforce limits in code too
+MAX_SPEND  = 3500.0
+MAX_SHARES = 20
 
 print("Running AI analysis...")
 
@@ -154,6 +159,10 @@ try:
         raise Exception(f"No JSON found in response: {raw[:200]}")
 
     rec = json.loads(raw[start:end])
+    # Enforce hard limits regardless of what AI said
+    price_per = rec.get("price_per_share", 1)
+    rec["shares"]     = min(MAX_SHARES, max(1, int(min(rec.get("shares", 1), MAX_SPEND // price_per))))
+    rec["total_cost"] = round(rec["shares"] * price_per, 2)
     print(f"AI recommendation: {json.dumps(rec, indent=2)}")
 
 except Exception as e:
