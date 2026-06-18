@@ -227,19 +227,19 @@ full_message = (
 
 if len(full_message) <= 3800:
     send_notification(
-        title=f"☀️ Morning Briefing — {today}",
+        title=f"Morning Briefing - {today}",
         message=full_message,
         priority="default",
     )
 else:
     # Send in two parts
     send_notification(
-        title=f"☀️ Morning Briefing — {today}",
+        title=f"Morning Briefing - {today}",
         message=f"📅 {today}\n\n{briefing}",
         priority="default",
     )
     send_notification(
-        title=f"📊 Today's Prices — {today}",
+        title=f"Today's Prices - {today}",
         message=f"OVERNIGHT MOVES:\n{prices_text}",
         priority="low",
     )
