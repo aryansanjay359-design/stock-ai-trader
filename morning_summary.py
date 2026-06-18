@@ -15,7 +15,22 @@ FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "")
 GROQ_KEY    = os.environ.get("GROQ_KEY", "")
 NTFY_TOPIC  = os.environ.get("NTFY_TOPIC", "")
 
-WATCHLIST   = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "AMD"]
+WATCHLIST = [
+    # Tech giants
+    "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMD", "AMZN",
+    # Electric vehicles & energy
+    "TSLA", "RIVN", "ENPH",
+    # Finance
+    "JPM", "GS", "V",
+    # Healthcare & pharma
+    "JNJ", "PFE", "LLY",
+    # Consumer & retail
+    "NFLX", "UBER", "SBUX",
+    # Semiconductors & hardware
+    "INTC", "QCOM", "ORCL",
+    # Other high-growth
+    "COIN", "PLTR", "SHOP", "SNOW", "ARM",
+]
 
 # ── Time ──────────────────────────────────────────────────────
 uk_time   = datetime.now(timezone.utc) + timedelta(hours=1)
