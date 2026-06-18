@@ -142,18 +142,15 @@ def get_candles(ticker, days=30):
     try:
         end   = int(datetime.now().timestamp())
         start = int((datetime.now() - timedelta(days=days + 10)).timestamp())
-        # Use weekly resolution for 1 year to stay within API limits
-        resolution = "W" if days >= 300 else "D"
         r     = requests.get(
             f"https://finnhub.io/api/v1/stock/candle"
-            f"?symbol={ticker}&resolution={resolution}&from={start}&to={end}&token={FINNHUB_KEY}",
+            f"?symbol={ticker}&resolution=D&from={start}&to={end}&token={FINNHUB_KEY}",
             timeout=8
         )
         data = r.json()
         if data.get("s") == "ok":
-            fmt = "%b %Y" if resolution == "W" else "%d %b"
             return [
-                {"date": datetime.fromtimestamp(data["t"][i]).strftime(fmt),
+                {"date": datetime.fromtimestamp(data["t"][i]).strftime("%d %b"),
                  "open": data["o"][i], "high": data["h"][i],
                  "low":  data["l"][i], "close": data["c"][i], "volume": data["v"][i]}
                 for i in range(len(data["t"]))
@@ -379,70 +376,17 @@ if page == "🏠 Dashboard":
                 st.metric(label=ticker, value="—")
 
     st.divider()
-
-    # ── Click a stock to see its chart ───────────────────────
-    st.subheader("Click a stock to view chart")
-
-    # Stock selector buttons
-    btn_cols = st.columns(7)
-    for i, ticker in enumerate(WATCHLIST):
-        with btn_cols[i % 7]:
-            if st.button(ticker, key=f"chart_btn_{ticker}", use_container_width=True):
-                st.session_state["chart_ticker"] = ticker
-
-    selected = st.session_state.get("chart_ticker", WATCHLIST[0])
-
-    st.divider()
-
-    # ── Live stats for selected stock ─────────────────────────
-    q = get_quote(selected)
-    if q:
-        chg     = ((q["c"] - q["pc"]) / q["pc"] * 100) if q["pc"] else 0
-        col1, col2, col3, col4, col5 = st.columns(5)
-        col1.metric("Price",      f"${q['c']:,.2f}")
-        col2.metric("Change",     f"{chg:+.2f}%")
-        col3.metric("Open",       f"${q['o']:,.2f}")
-        col4.metric("Day High",   f"${q['h']:,.2f}")
-        col5.metric("Day Low",    f"${q['l']:,.2f}")
-
-    # ── Period selector ───────────────────────────────────────
-    period_map = {
-        "1 Day":    1,
-        "7 Days":   7,
-        "1 Month":  30,
-        "3 Months": 90,
-        "1 Year":   365,
-    }
-    period = st.radio("Period", list(period_map.keys()), horizontal=True, index=2, key="chart_period")
-    days   = period_map[period]
-
-    # ── Fetch and display chart ───────────────────────────────
-    with st.spinner(f"Loading {selected} chart..."):
-        candles = get_candles(selected, days=days)
-
+    st.subheader("Price Chart")
+    selected = st.selectbox("Stock", WATCHLIST, key="chart_ticker")
+    period   = st.radio("Period", ["7 days", "30 days", "90 days"], horizontal=True)
+    candles  = get_candles(selected, days={"7 days": 7, "30 days": 30, "90 days": 90}[period])
     if candles:
         df = pd.DataFrame(candles)
-
-        # Colour based on overall trend
-        start_price = df["close"].iloc[0]
-        end_price   = df["close"].iloc[-1]
-        trend_pct   = ((end_price - start_price) / start_price * 100) if start_price else 0
-        trend_icon  = "📈" if trend_pct >= 0 else "📉"
-
-        st.markdown(f"### {selected} — {period} {trend_icon} {trend_pct:+.2f}%")
         st.line_chart(df.set_index("date")["close"], use_container_width=True)
-
-        # Show high/low/volume summary
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric(f"{period} High",   f"${df['high'].max():,.2f}")
-        c2.metric(f"{period} Low",    f"${df['low'].min():,.2f}")
-        c3.metric(f"{period} Change", f"{trend_pct:+.2f}%")
-        c4.metric("Avg Volume",       f"{int(df['volume'].mean()):,}")
-
-        with st.expander("📊 Show full OHLCV data"):
+        with st.expander("Show OHLCV data"):
             st.dataframe(df, use_container_width=True)
     else:
-        st.info(f"No chart data available for {selected}.")
+        st.info("No chart data available.")
 
     st.divider()
     st.subheader(f"Latest News: {selected}")
