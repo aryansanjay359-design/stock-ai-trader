@@ -198,7 +198,7 @@ You MUST respond with ONLY this JSON and nothing else — no markdown, no explan
                 "Content-Type":  "application/json",
             },
             json={
-                "model":       "llama3-8b-8192",
+                "model":       "llama-3.3-70b-versatile",
                 "temperature": 0.1,
                 "max_tokens":  300,
                 "messages": [
