@@ -251,7 +251,11 @@ Reply ONLY with JSON, no markdown:
 # ==============================================================
 
 def check_sell_alerts(portfolio):
-    """Check holdings for sell signals and return list of alerts"""
+    """
+    Check holdings for sell signals based ONLY on movement
+    since the user's actual buy price — not today's market move.
+    This prevents false alerts when buying a stock that already moved today.
+    """
     alerts = []
     for ticker, info in portfolio.get("holdings", {}).items():
         avg_price = info.get("avg_price", 0)
@@ -261,32 +265,30 @@ def check_sell_alerts(portfolio):
         q = get_quote(ticker)
         if not q:
             continue
-        curr_price    = q["c"]
-        overall_pct   = ((curr_price - avg_price) / avg_price * 100) if avg_price else 0
-        day_pct       = ((q["c"] - q["pc"]) / q["pc"] * 100) if q["pc"] else 0
-        curr_value    = curr_price * shares
-        total_gain    = curr_value - info.get("cost_basis", 0)
+        curr_price  = q["c"]
+        curr_value  = curr_price * shares
+        total_gain  = curr_value - info.get("cost_basis", 0)
+
+        # Only measure vs YOUR buy price — not today's open or prev close
+        gain_since_buy = ((curr_price - avg_price) / avg_price * 100) if avg_price else 0
 
         triggers = []
-        if overall_pct >= TAKE_PROFIT_PCT:
-            triggers.append(f"up {overall_pct:.1f}% from your buy price")
-        if overall_pct <= STOP_LOSS_PCT:
-            triggers.append(f"down {abs(overall_pct):.1f}% — stop loss")
-        if day_pct >= DAY_GAIN_PCT:
-            triggers.append(f"up {day_pct:.1f}% today")
+        if gain_since_buy >= TAKE_PROFIT_PCT:
+            triggers.append(f"up {gain_since_buy:.1f}% since you bought at ${avg_price:.2f}")
+        if gain_since_buy <= STOP_LOSS_PCT:
+            triggers.append(f"down {abs(gain_since_buy):.1f}% since you bought at ${avg_price:.2f} — stop loss")
 
         if triggers:
             alerts.append({
-                "ticker":      ticker,
-                "shares":      shares,
-                "curr_price":  curr_price,
-                "avg_price":   avg_price,
-                "overall_pct": overall_pct,
-                "day_pct":     day_pct,
-                "curr_value":  curr_value,
-                "total_gain":  total_gain,
-                "triggers":    triggers,
-                "is_loss":     overall_pct <= STOP_LOSS_PCT,
+                "ticker":          ticker,
+                "shares":          shares,
+                "curr_price":      curr_price,
+                "avg_price":       avg_price,
+                "overall_pct":     gain_since_buy,
+                "curr_value":      curr_value,
+                "total_gain":      total_gain,
+                "triggers":        triggers,
+                "is_loss":         gain_since_buy <= STOP_LOSS_PCT,
             })
     return alerts
 
