@@ -88,7 +88,7 @@ if quotes_fetched == 0:
     print("ERROR: Could not fetch any market data. Check FINNHUB_KEY.")
     requests.post(
         f"https://ntfy.sh/{NTFY_TOPIC}",
-        headers={"Title": "⚠️ AI Trader — Data Error", "Priority": "default"},
+        headers={"Title": "AI Trader - Data Error", "Priority": "default"},
         data="Could not fetch market data. Check your Finnhub key.".encode(),
         timeout=5,
     )
@@ -160,7 +160,7 @@ except Exception as e:
     print(f"AI analysis failed: {e}")
     requests.post(
         f"https://ntfy.sh/{NTFY_TOPIC}",
-        headers={"Title": "⚠️ AI Trader — Analysis Failed", "Priority": "default"},
+        headers={"Title": "AI Trader - Analysis Failed", "Priority": "default"},
         data=f"Scheduled analysis failed at {time_str}:\n{e}".encode(),
         timeout=5,
     )
@@ -193,7 +193,7 @@ try:
     r = requests.post(
         f"https://ntfy.sh/{NTFY_TOPIC}",
         headers={
-            "Title":    f"📈 AI Alert: BUY {ticker}",
+            "Title":    f"AI Alert: BUY {ticker}",
             "Priority": "high",
             "Tags":     "chart_increasing,robot",
         },
