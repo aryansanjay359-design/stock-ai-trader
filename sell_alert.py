@@ -15,8 +15,8 @@ FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "").strip()
 GROQ_KEY    = os.environ.get("GROQ_KEY", "").strip()
 NTFY_TOPIC  = os.environ.get("NTFY_TOPIC", "").strip()
 
-# ── Portfolio file (in repo root) ─────────────────────────────
-PORTFOLIO_FILE = "portfolio.json"
+# ── Portfolio stored in JSONBin cloud ───────────────────────────
+from portfolio_db import load_portfolio
 
 # ── Sell thresholds ───────────────────────────────────────────
 TAKE_PROFIT_PCT  = 5.0   # Notify if up 5% or more from avg buy price
