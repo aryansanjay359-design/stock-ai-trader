@@ -166,16 +166,16 @@ for ticker, info in holdings.items():
           f"gain={overall_pct:+.2f}%, today={day_change_pct:+.2f}%")
 
     # ── Check sell conditions ─────────────────────────────────
+    # Only trigger based on movement since YOUR buy price
+    gain_since_buy = ((curr_price - avg_price) / avg_price * 100) if avg_price else 0
+
     triggers = []
 
-    if overall_pct >= TAKE_PROFIT_PCT:
-        triggers.append(f"UP {overall_pct:.1f}% from your buy price (take profit target hit)")
+    if gain_since_buy >= TAKE_PROFIT_PCT:
+        triggers.append(f"UP {gain_since_buy:.1f}% since you bought at ${avg_price:.2f}")
 
-    if overall_pct <= STOP_LOSS_PCT:
-        triggers.append(f"DOWN {abs(overall_pct):.1f}% from your buy price (stop loss triggered)")
-
-    if day_change_pct >= DAY_GAIN_PCT:
-        triggers.append(f"UP {day_change_pct:.1f}% today alone (strong daily momentum)")
+    if gain_since_buy <= STOP_LOSS_PCT:
+        triggers.append(f"DOWN {abs(gain_since_buy):.1f}% since you bought at ${avg_price:.2f} — stop loss")
 
     if not triggers:
         print(f"  {ticker}: no sell signal")
@@ -189,7 +189,7 @@ for ticker, info in holdings.items():
     )
 
     # ── Determine urgency ─────────────────────────────────────
-    is_stop_loss = overall_pct <= STOP_LOSS_PCT
+    is_stop_loss = gain_since_buy <= STOP_LOSS_PCT
     priority     = "urgent" if is_stop_loss else "high"
     alert_type   = "STOP LOSS" if is_stop_loss else "SELL OPPORTUNITY"
 
@@ -207,7 +207,7 @@ for ticker, info in holdings.items():
         f"Open the app to sell."
     )
 
-    title = f"{alert_type}: {ticker} {overall_pct:+.1f}%"
+    title = f"{alert_type}: {ticker} {gain_since_buy:+.1f}%"
 
     sent = send_notification(title, message, priority=priority)
     if sent:
