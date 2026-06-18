@@ -199,8 +199,9 @@ def run_ai_analysis(portfolio):
 Available cash: £{cash:.2f}
 Already owns: {owned}
 
-Pick the single best BUY. Reply ONLY with JSON, no markdown:
-{{"ticker":"AAPL","action":"BUY","shares":3,"price_per_share":213.45,"total_cost":640.35,"reasoning":"Brief reason.","risk":"Low"}}
+Pick the single best BUY. IMPORTANT LIMITS: max 20 shares, max £3,500 total cost. Spread risk — do not go all in on one stock.
+Reply ONLY with JSON, no markdown:
+{{"ticker":"AAPL","action":"BUY","shares":3,"price_per_share":213.45,"total_cost":499.50,"reasoning":"Brief reason.","risk":"Low"}}
 """
     try:
         resp = requests.post(
@@ -231,8 +232,13 @@ Pick the single best BUY. Reply ONLY with JSON, no markdown:
         for f in ["ticker", "shares", "price_per_share", "total_cost", "reasoning"]:
             if f not in rec:
                 return None, f"Missing field: {f}"
+        MAX_SPEND  = 3500.0
+        MAX_SHARES = 20
+        if rec["total_cost"] > MAX_SPEND or rec["shares"] > MAX_SHARES:
+            rec["shares"]     = min(MAX_SHARES, max(1, int(MAX_SPEND // rec["price_per_share"])))
+            rec["total_cost"] = round(rec["shares"] * rec["price_per_share"], 2)
         if rec["total_cost"] > cash:
-            rec["shares"]    = max(1, int(cash // rec["price_per_share"]))
+            rec["shares"]     = max(1, int(cash // rec["price_per_share"]))
             rec["total_cost"] = round(rec["shares"] * rec["price_per_share"], 2)
         rec.setdefault("risk", "Medium")
         rec.setdefault("action", "BUY")
