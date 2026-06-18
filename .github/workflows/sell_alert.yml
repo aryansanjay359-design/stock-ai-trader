@@ -1,0 +1,46 @@
+name: Sell Alert Monitor
+
+on:
+  schedule:
+    # Every 30 minutes weekdays between 2pm and 9pm UK time (BST)
+    - cron: '0 13 * * 1-5'
+    - cron: '30 13 * * 1-5'
+    - cron: '0 14 * * 1-5'
+    - cron: '30 14 * * 1-5'
+    - cron: '0 15 * * 1-5'
+    - cron: '30 15 * * 1-5'
+    - cron: '0 16 * * 1-5'
+    - cron: '30 16 * * 1-5'
+    - cron: '0 17 * * 1-5'
+    - cron: '30 17 * * 1-5'
+    - cron: '0 18 * * 1-5'
+    - cron: '30 18 * * 1-5'
+    - cron: '0 19 * * 1-5'
+    - cron: '30 19 * * 1-5'
+    - cron: '0 20 * * 1-5'
+    - cron: '30 20 * * 1-5'
+
+  workflow_dispatch:
+
+jobs:
+  sell_alert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run sell alert check
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          GROQ_KEY:    ${{ secrets.GROQ_KEY }}
+          NTFY_TOPIC:  ${{ secrets.NTFY_TOPIC }}
+        run: python sell_alert.py
