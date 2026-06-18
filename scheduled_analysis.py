@@ -188,19 +188,28 @@ message = (
 )
 
 print(f"Sending notification to ntfy topic: {NTFY_TOPIC}")
+clean_topic = NTFY_TOPIC.strip()
+print(f"Full URL: https://ntfy.sh/{clean_topic}")
 
 try:
     r = requests.post(
-        f"https://ntfy.sh/{NTFY_TOPIC}",
+        f"https://ntfy.sh/{clean_topic}",
         headers={
-            "Title":    f"AI Alert: BUY {ticker}",
-            "Priority": "high",
-            "Tags":     "chart_increasing,robot",
+            "Title":        f"AI Alert: BUY {ticker}",
+            "Priority":     "high",
+            "Tags":         "chart_increasing,robot",
+            "Content-Type": "text/plain; charset=utf-8",
         },
         data=message.encode("utf-8"),
-        timeout=8,
+        timeout=10,
     )
-    print(f"Notification sent! Status: {r.status_code}")
+    print(f"ntfy status code: {r.status_code}")
+    print(f"ntfy response: {r.text[:300]}")
+    if r.status_code == 200:
+        print("Notification sent successfully!")
+    else:
+        print(f"ERROR: ntfy returned {r.status_code}")
+        exit(1)
 except Exception as e:
     print(f"Notification failed: {e}")
     exit(1)
