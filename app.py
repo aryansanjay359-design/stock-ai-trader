@@ -1,6 +1,7 @@
 # ==============================================================
 # AI Stock Trader — Complete App
-# Uses Finnhub for live stock data + Claude AI for recommendations
+# Uses Finnhub for live stock data + Groq AI for recommendations
+# Push notifications via ntfy.sh
 # Paper trading with £10,000 dummy money
 # ==============================================================
 
@@ -19,17 +20,42 @@ st.set_page_config(
 
 # ── API Keys (loaded from Streamlit Secrets) ──────────────────
 try:
-    FINNHUB_KEY     = st.secrets["FINNHUB_KEY"]
-    ANTHROPIC_KEY   = st.secrets["ANTHROPIC_KEY"]
+    FINNHUB_KEY = st.secrets["FINNHUB_KEY"]
+    GROQ_KEY    = st.secrets["GROQ_KEY"]
+    NTFY_TOPIC  = st.secrets["NTFY_TOPIC"]
 except Exception:
-    FINNHUB_KEY     = os.getenv("FINNHUB_KEY", "")
-    ANTHROPIC_KEY   = os.getenv("ANTHROPIC_KEY", "")
+    FINNHUB_KEY = os.getenv("FINNHUB_KEY", "")
+    GROQ_KEY    = os.getenv("GROQ_KEY", "")
+    NTFY_TOPIC  = os.getenv("NTFY_TOPIC", "")
 
 # ── Watchlist ─────────────────────────────────────────────────
 WATCHLIST = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "GOOGL", "META", "AMD"]
 
 # ── Portfolio file ────────────────────────────────────────────
 PORTFOLIO_FILE = "portfolio.json"
+
+# ==============================================================
+# PUSH NOTIFICATIONS (ntfy.sh — free, no account needed)
+# ==============================================================
+
+def send_notification(title, message, priority="high"):
+    """Send a push notification via ntfy.sh to your phone"""
+    if not NTFY_TOPIC:
+        return False
+    try:
+        requests.post(
+            f"https://ntfy.sh/{NTFY_TOPIC}",
+            headers={
+                "Title":    title,
+                "Priority": priority,
+                "Tags":     "chart_increasing,robot",
+            },
+            data=message.encode("utf-8"),
+            timeout=5,
+        )
+        return True
+    except Exception:
+        return False
 
 # ==============================================================
 # PORTFOLIO HELPERS
@@ -57,7 +83,7 @@ def get_quote(ticker):
     """Returns dict with c=current, pc=prev close, h=high, l=low, o=open"""
     try:
         url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_KEY}"
-        r = requests.get(url, timeout=6)
+        r   = requests.get(url, timeout=6)
         data = r.json()
         if data.get("c", 0) > 0:
             return data
@@ -108,21 +134,18 @@ def get_company_news(ticker):
         return []
 
 # ==============================================================
-# AI ADVISOR
+# AI ADVISOR (Groq — free)
 # ==============================================================
 
 def run_ai_analysis(portfolio):
-    """Ask Claude to pick the best stock to buy right now"""
-    if not ANTHROPIC_KEY:
-        return None, "No Anthropic API key set."
+    """Ask Groq AI to pick the best stock to buy right now"""
+    if not GROQ_KEY:
+        return None, "No Groq API key set."
 
-    # Build market snapshot
     lines = ["Current market data:\n"]
-    quotes = {}
     for ticker in WATCHLIST:
         q = get_quote(ticker)
         if q:
-            quotes[ticker] = q
             change_pct = ((q["c"] - q["pc"]) / q["pc"] * 100) if q["pc"] else 0
             lines.append(
                 f"  {ticker}: price=${q['c']:.2f}, "
@@ -130,9 +153,9 @@ def run_ai_analysis(portfolio):
                 f"high=${q['h']:.2f}, low=${q['l']:.2f}"
             )
 
-    cash      = portfolio.get("cash", 0)
-    holdings  = portfolio.get("holdings", {})
-    owned     = ", ".join(holdings.keys()) if holdings else "none"
+    cash     = portfolio.get("cash", 0)
+    holdings = portfolio.get("holdings", {})
+    owned    = ", ".join(holdings.keys()) if holdings else "none"
 
     market_text = "\n".join(lines)
     user_msg = f"""
@@ -143,7 +166,7 @@ Currently owns: {owned}
 
 Pick the single best BUY opportunity from the tickers above.
 Consider: price momentum, day range position, and diversification.
-Reply with ONLY valid JSON, no extra text:
+Reply with ONLY valid JSON, no extra text, no markdown:
 
 {{
   "ticker": "AAPL",
@@ -158,24 +181,30 @@ Reply with ONLY valid JSON, no extra text:
 
     try:
         resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers={
-                "x-api-key": ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
+                "Authorization": f"Bearer {GROQ_KEY}",
+                "Content-Type":  "application/json",
             },
             json={
-                "model": "claude-sonnet-4-6",
-                "max_tokens": 500,
-                "system": (
-                    "You are an expert stock market analyst. "
-                    "You ONLY respond with valid JSON. No markdown. No explanation outside JSON."
-                ),
-                "messages": [{"role": "user", "content": user_msg}],
+                "model": "llama3-8b-8192",
+                "messages": [
+                    {
+                        "role":    "system",
+                        "content": "You are an expert stock market analyst. You ONLY respond with valid JSON. No markdown. No explanation outside JSON."
+                    },
+                    {
+                        "role":    "user",
+                        "content": user_msg
+                    }
+                ],
+                "temperature": 0.3,
+                "max_tokens":  500,
             },
             timeout=30,
         )
-        raw  = resp.json()["content"][0]["text"].strip()
+        data = resp.json()
+        raw  = data["choices"][0]["message"]["content"].strip()
         raw  = raw.replace("```json", "").replace("```", "").strip()
         rec  = json.loads(raw)
         return rec, None
@@ -186,11 +215,10 @@ Reply with ONLY valid JSON, no extra text:
 # SIDEBAR
 # ==============================================================
 
-portfolio     = load_portfolio()
-cash          = portfolio["cash"]
-holdings      = portfolio["holdings"]
+portfolio            = load_portfolio()
+cash                 = portfolio["cash"]
+holdings             = portfolio["holdings"]
 
-# Calculate current portfolio value
 total_holdings_value = 0.0
 for ticker, info in holdings.items():
     q = get_quote(ticker)
@@ -200,7 +228,7 @@ for ticker, info in holdings.items():
 total_value = cash + total_holdings_value
 
 st.sidebar.title("📈 AI Stock Trader")
-st.sidebar.caption("Paper trading · Powered by Finnhub + Claude AI")
+st.sidebar.caption("Paper trading · Finnhub + Groq AI")
 st.sidebar.divider()
 st.sidebar.metric("💷 Cash",            f"£{cash:,.2f}")
 st.sidebar.metric("📦 Holdings Value",  f"£{total_holdings_value:,.2f}")
@@ -232,7 +260,6 @@ if page == "🏠 Dashboard":
             st.rerun()
 
     st.subheader("Watchlist")
-
     cols = st.columns(4)
     for i, ticker in enumerate(WATCHLIST):
         q = get_quote(ticker)
@@ -250,7 +277,6 @@ if page == "🏠 Dashboard":
                 st.metric(label=ticker, value="—")
                 st.caption("No data")
 
-    # ── Chart for selected ticker ────────────────────────────
     st.divider()
     st.subheader("Price Chart")
     selected = st.selectbox("Choose a stock", WATCHLIST)
@@ -261,15 +287,12 @@ if page == "🏠 Dashboard":
     if candles:
         import pandas as pd
         df = pd.DataFrame(candles)
-
         st.line_chart(df.set_index("date")["close"], use_container_width=True)
-
         with st.expander("Show OHLCV table"):
             st.dataframe(df, use_container_width=True)
     else:
         st.info("No chart data available for this ticker right now.")
 
-    # ── News ─────────────────────────────────────────────────
     st.divider()
     st.subheader(f"Latest News: {selected}")
     news = get_company_news(selected)
@@ -291,12 +314,9 @@ if page == "🏠 Dashboard":
 
 elif page == "🤖 AI Advisor":
     st.title("🤖 AI Investment Advisor")
-    st.caption(
-        "The AI scans the market and picks the best opportunity. "
-        "**Nothing trades without your approval.**"
-    )
+    st.caption("The AI scans the market and picks the best opportunity. **Nothing trades without your approval.**")
 
-    if not FINNHUB_KEY or not ANTHROPIC_KEY:
+    if not FINNHUB_KEY or not GROQ_KEY:
         st.error("⚠️ API keys missing. Go to ⚙️ Settings.")
         st.stop()
 
@@ -312,8 +332,22 @@ elif page == "🤖 AI Advisor":
             st.error(f"AI analysis failed: {err}")
         elif rec:
             st.session_state["pending_rec"] = rec
+            # ── Send push notification ──────────────────────
+            notif_sent = send_notification(
+                title=f"📈 AI Trade Alert: {rec['action']} {rec['ticker']}",
+                message=(
+                    f"{rec['shares']} shares @ ${rec.get('price_per_share', 0):.2f}\n"
+                    f"Total: £{rec['total_cost']:.2f}\n"
+                    f"Risk: {rec.get('risk', 'Unknown')}\n"
+                    f"{rec['reasoning']}\n\n"
+                    f"Open the app to approve or reject."
+                ),
+            )
+            if notif_sent:
+                st.success("📱 Push notification sent to your phone!")
+            elif NTFY_TOPIC:
+                st.warning("Notification failed — check your NTFY_TOPIC in Secrets.")
 
-    # ── Show pending recommendation ──────────────────────────
     rec = st.session_state.get("pending_rec")
     if rec:
         st.divider()
@@ -323,14 +357,18 @@ elif page == "🤖 AI Advisor":
         with col1:
             risk_colour = {"Low": "🟢", "Medium": "🟡", "High": "🔴"}.get(rec.get("risk", ""), "⚪")
             st.markdown(f"### {rec['action']} **{rec['ticker']}**")
-            st.markdown(f"**Shares:** {rec['shares']}  |  **Price:** ${rec.get('price_per_share', 0):,.2f}  |  **Total cost:** £{rec['total_cost']:,.2f}")
+            st.markdown(
+                f"**Shares:** {rec['shares']}  |  "
+                f"**Price:** ${rec.get('price_per_share', 0):,.2f}  |  "
+                f"**Total cost:** £{rec['total_cost']:,.2f}"
+            )
             st.markdown(f"**Risk:** {risk_colour} {rec.get('risk', 'Unknown')}")
             st.markdown(f"**AI Reasoning:**  \n{rec['reasoning']}")
 
         with col2:
             q = get_quote(rec["ticker"])
             if q:
-                st.metric("Live Price",  f"${q['c']:,.2f}")
+                st.metric("Live Price", f"${q['c']:,.2f}")
             st.metric("Cash After Trade", f"£{cash - rec['total_cost']:,.2f}")
 
         st.warning("⚠️ This uses **dummy paper money** only. Review carefully before approving.")
@@ -344,9 +382,9 @@ elif page == "🤖 AI Advisor":
                     portfolio["cash"] -= rec["total_cost"]
                     ticker = rec["ticker"]
                     if ticker in portfolio["holdings"]:
-                        existing = portfolio["holdings"][ticker]
-                        total_shares  = existing["shares"] + rec["shares"]
-                        total_cost    = existing["cost_basis"] + rec["total_cost"]
+                        existing     = portfolio["holdings"][ticker]
+                        total_shares = existing["shares"] + rec["shares"]
+                        total_cost   = existing["cost_basis"] + rec["total_cost"]
                         portfolio["holdings"][ticker] = {
                             "shares":     total_shares,
                             "cost_basis": total_cost,
@@ -368,12 +406,23 @@ elif page == "🤖 AI Advisor":
                         "reasoning": rec["reasoning"],
                     })
                     save_portfolio(portfolio)
+                    # Notify on approval
+                    send_notification(
+                        title=f"✅ Trade Approved: BUY {ticker}",
+                        message=f"Bought {rec['shares']} shares of {ticker} for £{rec['total_cost']:.2f}",
+                        priority="default",
+                    )
                     del st.session_state["pending_rec"]
                     st.success(f"✅ Trade approved! Bought {rec['shares']} shares of {ticker}.")
                     st.rerun()
 
         with col_no:
             if st.button("❌ REJECT", use_container_width=True):
+                send_notification(
+                    title=f"❌ Trade Rejected: {rec['ticker']}",
+                    message="You rejected the AI's recommendation. No trade was made.",
+                    priority="low",
+                )
                 del st.session_state["pending_rec"]
                 st.info("Trade rejected. No action taken.")
                 st.rerun()
@@ -386,21 +435,21 @@ elif page == "📋 My Portfolio":
     st.title("📋 My Portfolio")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("💷 Cash",          f"£{cash:,.2f}")
-    col2.metric("📦 Holdings",      f"£{total_holdings_value:,.2f}")
-    col3.metric("💼 Total Value",   f"£{total_value:,.2f}")
+    col1.metric("💷 Cash",         f"£{cash:,.2f}")
+    col2.metric("📦 Holdings",     f"£{total_holdings_value:,.2f}")
+    col3.metric("💼 Total Value",  f"£{total_value:,.2f}")
 
     st.divider()
 
     if holdings:
         st.subheader("Current Holdings")
         for ticker, info in holdings.items():
-            q           = get_quote(ticker)
-            curr_price  = q["c"] if q else info["avg_price"]
-            curr_value  = curr_price * info["shares"]
-            gain        = curr_value - info["cost_basis"]
-            gain_pct    = (gain / info["cost_basis"] * 100) if info["cost_basis"] else 0
-            colour      = "🟢" if gain >= 0 else "🔴"
+            q          = get_quote(ticker)
+            curr_price = q["c"] if q else info["avg_price"]
+            curr_value = curr_price * info["shares"]
+            gain       = curr_value - info["cost_basis"]
+            gain_pct   = (gain / info["cost_basis"] * 100) if info["cost_basis"] else 0
+            colour     = "🟢" if gain >= 0 else "🔴"
 
             c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
             c1.markdown(f"**{ticker}**")
@@ -409,7 +458,6 @@ elif page == "📋 My Portfolio":
             c4.write(f"Now £{curr_value:,.2f}")
             c5.markdown(f"{colour} £{gain:+,.2f} ({gain_pct:+.1f}%)")
 
-            # Sell button
             if st.button(f"Sell {ticker}", key=f"sell_{ticker}"):
                 if q:
                     proceeds = q["c"] * info["shares"]
@@ -425,6 +473,11 @@ elif page == "📋 My Portfolio":
                         "reasoning": "Manual sell by user",
                     })
                     save_portfolio(portfolio)
+                    send_notification(
+                        title=f"💰 Sold {ticker}",
+                        message=f"Sold {info['shares']} shares of {ticker} for £{proceeds:.2f}",
+                        priority="default",
+                    )
                     st.success(f"Sold {info['shares']} shares of {ticker} for £{proceeds:,.2f}")
                     st.rerun()
                 else:
@@ -464,33 +517,56 @@ elif page == "⚙️ Settings":
     st.title("⚙️ Settings & Setup")
 
     st.subheader("API Key Status")
-    st.write("🔑 **Finnhub Key:**",   "✅ Set" if FINNHUB_KEY   else "❌ Missing")
-    st.write("🔑 **Anthropic Key:**", "✅ Set" if ANTHROPIC_KEY else "❌ Missing")
+    st.write("🔑 **Finnhub Key:**", "✅ Set" if FINNHUB_KEY else "❌ Missing")
+    st.write("🔑 **Groq Key:**",    "✅ Set" if GROQ_KEY    else "❌ Missing")
+    st.write("🔔 **Ntfy Topic:**",  "✅ Set" if NTFY_TOPIC  else "❌ Missing — notifications won't work")
 
     st.divider()
-    st.subheader("How to add your API keys on Streamlit Cloud")
+    st.subheader("📱 Setting up push notifications (ntfy.sh)")
     st.markdown("""
-1. Go to your app on [share.streamlit.io](https://share.streamlit.io)
-2. Click the **3 dots (⋮)** next to your app → **Settings**
-3. Click **Secrets**
-4. Paste this (with your real keys):
+**Step 1 — Install the ntfy app on your phone:**
+- iPhone: search **ntfy** on the App Store
+- Android: search **ntfy** on the Play Store
 
+**Step 2 — Choose a unique topic name**
+
+Pick something unique that only you know, for example:
+`johns-trader-x7k29`  *(make up your own — don't use this one)*
+
+**Step 3 — Subscribe in the app**
+- Open the ntfy app on your phone
+- Tap **+** → type your topic name → Subscribe
+
+**Step 4 — Add it to Streamlit Secrets**
 ```toml
-FINNHUB_KEY   = "your_finnhub_key_here"
-ANTHROPIC_KEY = "your_anthropic_key_here"
+NTFY_TOPIC = "your-unique-topic-name"
 ```
 
-5. Click **Save** — the app will restart automatically
+That's it — you'll now get a notification on your phone every time the AI finds a trade!
     """)
 
     st.divider()
-    st.subheader("Where to get your keys")
-    st.markdown("""
-- **Finnhub (free):** Go to [finnhub.io](https://finnhub.io) → Sign up → Dashboard → copy your API key
-- **Anthropic:** Go to [console.anthropic.com](https://console.anthropic.com) → API Keys → Create key
-    """)
+    st.subheader("All Streamlit Secrets (copy and paste this)")
+    st.code("""
+FINNHUB_KEY = "your_finnhub_key_here"
+GROQ_KEY    = "your_groq_key_here"
+NTFY_TOPIC  = "your-unique-topic-name"
+    """, language="toml")
+
+    st.divider()
+    st.subheader("Test notification")
+    if st.button("📱 Send test notification to my phone"):
+        sent = send_notification(
+            title="✅ Test from AI Stock Trader",
+            message="Notifications are working! You'll receive alerts when the AI finds a trade.",
+            priority="default",
+        )
+        if sent:
+            st.success("Test notification sent! Check your phone.")
+        else:
+            st.error("Failed — make sure NTFY_TOPIC is set in your Streamlit Secrets.")
 
     st.divider()
     st.subheader("Watchlist")
     st.write("Current watchlist:", ", ".join(WATCHLIST))
-    st.info("To change the watchlist, edit the `WATCHLIST` variable at the top of `app.py`.")
+    st.info("To change the watchlist, edit the WATCHLIST variable at the top of app.py.")
