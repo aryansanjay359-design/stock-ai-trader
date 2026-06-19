@@ -112,18 +112,15 @@ In 2 sentences max, should they sell now or hold? Be direct and specific.
         return "Could not get AI opinion."
 
 # ==============================================================
-# LOAD PORTFOLIO
+# LOAD PORTFOLIO FROM JSONBIN
 # ==============================================================
 
-if not os.path.exists(PORTFOLIO_FILE):
-    print("No portfolio.json found — no holdings to check.")
-    exit(0)
+from portfolio_db import load_portfolio
 
 try:
-    with open(PORTFOLIO_FILE) as f:
-        portfolio = json.load(f)
+    portfolio = load_portfolio()
 except Exception as e:
-    print(f"Could not read portfolio: {e}")
+    print(f"Could not load portfolio: {e}")
     exit(0)
 
 holdings = portfolio.get("holdings", {})
