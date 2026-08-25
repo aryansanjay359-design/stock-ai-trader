@@ -130,6 +130,7 @@ try:
             "model":       "openai/gpt-oss-20b",
             "temperature": 0.1,
             "max_tokens":  300,
+            "reasoning_effort": "none",
             "messages": [
                 {
                     "role":    "system",
