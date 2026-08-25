@@ -213,6 +213,7 @@ Reply ONLY with JSON, no markdown:
             json={
                 "model": "openai/gpt-oss-20b",
                 "temperature": 0.1, "max_tokens": 300,
+                "reasoning_effort": "none",
                 "messages": [
                     {"role": "system", "content": "You are a stock trading AI. Respond ONLY with valid JSON. No markdown."},
                     {"role": "user",   "content": prompt}
