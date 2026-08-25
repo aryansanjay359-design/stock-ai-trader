@@ -127,7 +127,7 @@ try:
             "Content-Type":  "application/json",
         },
         json={
-            "model":       "llama-3.3-70b-versatile",
+            "model":       "qwen/qwen3.6-27b",
             "temperature": 0.1,
             "max_tokens":  300,
             "messages": [
