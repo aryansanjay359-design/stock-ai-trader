@@ -127,7 +127,7 @@ try:
             "Content-Type":  "application/json",
         },
         json={
-            "model":       "qwen/qwen3.6-27b",
+            "model":       "openai/gpt-oss-20b",
             "temperature": 0.1,
             "max_tokens":  300,
             "messages": [
