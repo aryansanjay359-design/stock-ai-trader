@@ -211,7 +211,7 @@ Reply ONLY with JSON, no markdown:
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
             json={
-                "model": "qwen/qwen3.6-27b",
+                "model": "openai/gpt-oss-20b",
                 "temperature": 0.1, "max_tokens": 300,
                 "messages": [
                     {"role": "system", "content": "You are a stock trading AI. Respond ONLY with valid JSON. No markdown."},
